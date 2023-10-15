@@ -1,0 +1,5 @@
+- Implementar el "Gprotocol", formato de mensajes (%%BEG%% %%<SIZE>%% %%END%%)
+y comunicación entre cliente-servidor para implementar el traspaso de ficheros de mayor tamaño
+en gcat
+- Empezar a construir gcat 
+- [IDEA] mandar toda la data y esperar con while(available){ioctl()}
