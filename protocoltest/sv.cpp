@@ -15,6 +15,10 @@ bool gstrcmp(char *buff1, char* buff2, int n){
   return true;
 }
 
+// TODO - add cleanup function
+// 4Mb
+char buffer[4 * 1024 * 1024];
+
 int main()
 {
   tcp4socket sv;
@@ -23,7 +27,6 @@ int main()
   }
   printf("LISTENING ON %s:%d\n",address,port);
   // Accept clients
-  char buffer[4 * 1024 * 1024];
   uint64_t rbytes = 0, wbytes = 0, total = 0;
   for(;;)
   {
@@ -36,47 +39,89 @@ int main()
       break;
     }
     
-    // Check if it's using the gurguiprotocol
-    // TODO - encapsulate all of this in a single function
+    // 1. Look for %%BEG%% 
     if(!gstrcmp(buffer,(char*)BEGINNING_OF_CONNECTION_MSG,strlen(BEGINNING_OF_CONNECTION_MSG))){
       printf("not %%BEG%%...\n");
       break;
     }
-    
     memset(buffer,0,rbytes);
 
+    // 2. Send OK to client
     wbytes = client.send((char*)SERVER_OK,sizeof(SERVER_OK));
     if(wbytes<=0){
       printf("sending first SERVER_OK\n");
       break;
     }
-    
-    // File to keep data
-    FILE *file = fopen("testingo.7z","wb");
-    if(file == NULL){
-      fprintf(stderr,"couldn't open testingo\n");
+
+    // 3. Receive message length from client 
+    rbytes = client.recv(buffer,sizeof(buffer));
+    if(rbytes <= 0){
+      printf("[error] receiving message size - recv() returned %lu\n",rbytes);
+      break;
+    }
+    char delims[] = " ";
+    char *result = strtok(buffer,delims);
+    result = strtok(NULL,delims);
+    uint64_t msglen = strtol(result,NULL,10);
+    char server_ok_size[100];
+    memset(server_ok_size,0,sizeof(server_ok_size));
+
+    if(msglen <= 0){
+      printf("[error] message len <= 0 - %lu\n",msglen);
+      break;
+    }
+
+    // 4. Send OK <size> to client
+    int cx = snprintf(server_ok_size,sizeof(server_ok_size),"%s %lu\n",SERVER_OK,msglen);
+    if(cx <= 0){
+      printf("[error] - snprintf() returned %i\n",cx);
       return -1;
     }
-    // Start reading incoming data
-    while((rbytes = client.recv(buffer,sizeof(buffer))) > 0)
+    wbytes = client.send(server_ok_size,sizeof(server_ok_size));
+    if(wbytes <= 0){
+      printf("[error] - sending OK <size> returned %lu\n",wbytes);
+      break;
+    }
+
+    // 5. Start reading data from client until recv() returns <= 0
+    while(total < msglen)
     {
+      rbytes = client.recv(buffer,sizeof(buffer));
       total += rbytes;
-      // Check for %%END%%
-      if(gstrcmp(buffer+strlen(buffer)-strlen(END_OF_CONNECTION_MSG),(char*)END_OF_CONNECTION_MSG,strlen(END_OF_CONNECTION_MSG))){
-        memset(buffer+rbytes-strlen(END_OF_CONNECTION_MSG),0,strlen(END_OF_CONNECTION_MSG));
-        fwrite(buffer,rbytes,1,file);
+      // Not end, print data to terminal and send OK <size> to client
+      write(0,buffer,rbytes);
+      int cx = snprintf(server_ok_size,sizeof(server_ok_size),"%s %lu",SERVER_OK,rbytes);
+      if( cx <= 0){
+        printf("[error] snprintf() - %lu\n",rbytes);
+        break;
+      };
+      // 5.2 send OK <size> to client 
+      printf("sending to client - %s\n",server_ok_size);
+      wbytes = client.send(server_ok_size,sizeof(server_ok_size)-1);
+      if(wbytes <= 0){
+        printf("[error] sending server_ok_size - %lu\n",wbytes);
         break;
       }
-      fwrite(buffer,rbytes,1,file);
-      client.send(SERVER_OK);
+      memset(server_ok_size,0,cx);
       memset(buffer,0,rbytes);
     }
+
+    // 6. Wait for %%END%%
+    rbytes = client.recv(buffer,sizeof(buffer));
+    if(rbytes <= 0){
+      printf("[error] step 6 - recv() returned %lu\n",rbytes);
+      break;
+    }
+    
+    if(!gstrcmp(buffer+strlen(buffer)-strlen(END_OF_CONNECTION_MSG),(char*)END_OF_CONNECTION_MSG,strlen(END_OF_CONNECTION_MSG))){
+      printf("[error] didn't receive %%END%%, instead received: %s\n",buffer);
+      break;
+    }
+
+    // 7. Send DONE and close connection
     memset(buffer,0,rbytes);
-    printf("\n\n\r[info] total received: %lu bytes\n",total);
-    total = 0;
-    // Send the END_OF_CONNECTION_MSG message.
-    client.send(END_OF_CONNECTION_MSG);
+    client.send(CONNECTION_DONE);
     client.close();
+    total = 0;
   }
 }
-

@@ -1,25 +1,39 @@
+// TODO - make a copy of this file and after filling the 4mb buffer, start sending
+// blocks of 64 * 1024 (64kilobytes) so that it fits in the tcp packet.
 #include <gsocket/gsocket.hpp>
+#define max_data_len 64000
+
 using namespace gsocket;
+
+char buffer[4*1024*1024]{0};
+char *buffptr = buffer;
+uint64_t available = 0;
+uint64_t sbytes = 0;
 
 int main()
 {
   tcp4socket client;
   client.connect("127.0.0.1", 9001);
-  char buffer[4 * 1024 * 1024];
-  memset(buffer,0,sizeof(buffer));
-  uint64_t available = 0;
+
   ioctl(0,FIONREAD,&available);
   if(available)
   {
     if(available > sizeof(buffer)){
-      //send by chunks
+      // Send by chunks
       int iters = available/sizeof(buffer);
       int rest = available%sizeof(buffer);
+      int _iters = sizeof(buffer)/max_data_len;
+      int _rest = sizeof(buffer)%max_data_len;
+
       for(int i = 0; i < iters; ++i){
         read(0,buffer,sizeof(buffer));
-        client.send(buffer);
-        memset(buffer,0,sizeof(buffer));
+        for(int n = 0; n < _iters; ++n){
+          sbytes = client.send(buffptr,max_data_len);
+          //buffptr+=max_data_len;
+        }
+        sbytes = client.send(buffptr,rest);
       }
+
       read(0,buffer,rest);
       client.send(buffer);
       memset(buffer,0,rest);

@@ -3,3 +3,4 @@ y comunicación entre cliente-servidor para implementar el traspaso de ficheros 
 en gcat
 - Empezar a construir gcat 
 - [IDEA] mandar toda la data y esperar con while(available){ioctl()}
+- [PRIORITARIO] parser

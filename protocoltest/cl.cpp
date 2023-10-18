@@ -1,4 +1,5 @@
 #include <gsocket/gsocket.hpp>
+#include <string.h>
 #include "gurguiTCPprotocol.h"
 using namespace gsocket;
 
@@ -12,8 +13,12 @@ bool gstrcmp(char *buff1, char* buff2, int n){
   return true;
 }
 
+// TODO - add cleanup
+unsigned char buffer[4 * 1024 * 1024]; // 4MB
+
 int main()
 {
+  memset(buffer,0,sizeof(buffer));
   uint64_t bytes = 0;
   ioctl(0,FIONREAD,&bytes);
   if(bytes <= 0){
@@ -26,78 +31,142 @@ int main()
     return -1;
   }
 
-  char buff[4 * 1024 * 1024]; // 4MB
   uint64_t wbytes = 0, rbytes = 0, total = 0;
-
-  wbytes = client.send(BEGINNING_OF_CONNECTION_MSG);
+  // 1. Send %%BEG%% to server
+  wbytes = client.send((char*)BEGINNING_OF_CONNECTION_MSG,strlen(BEGINNING_OF_CONNECTION_MSG));
   if(wbytes <= 0){
-    std::cerr << sockError << "\n"; return -1;
-  }
-  printf("[info] waiting OK from server\n");
-  rbytes = client.recv(buff, sizeof(buff));
-  if(!gstrcmp(buff,(char*)SERVER_OK,strlen(SERVER_OK))){
-    std::cerr << "Didn't receive OK from server\n";
+    printf("[error] step 1. - send() returned %lu\n",wbytes);
     return -1;
   }
-  printf("[info] received OK from server, sending data...\n");
-  // start sending data
-  
-  // if data fits in 1 buffer,
-  // send it all at once, else
-  // sent it in chunks
-  if(bytes <= sizeof(buff)){
-    read(0,buff,bytes);
-    if(client.send(buff,bytes) <= 0){
-      fprintf(stderr,"[error] sending data...\n"); return -1;
-    };
-    memset(buff,0,bytes);
-  }else{
-    int iters = bytes / sizeof(buff);
-    int rest = bytes % sizeof(buff);
-    char ans[1024];
-    for(int i = 0; i < iters; ++i){
-      rbytes = read(0,buff,sizeof(buff));
-      if(rbytes <= 0){
-        std::cerr << "smth happened reading stdin... - errcode: " << wbytes;
-        break;
-      }
-      wbytes = client.send(buff);
-      if(wbytes <= 0){
-        std::cerr << "smth happened sending data... - errcode: " << wbytes;
-        break;
-      }
-      memset(buff,0,wbytes);
-      client.recv(ans,sizeof(ans));
-      if(strcmp((char*)SERVER_OK,ans)){
-        // not good
-        std::cerr << "didn't receive OK from server, instead received " << ans << "\n";
-        break;
-      }
-      memset(ans,0,sizeof(ans));
-    }
-    // send last chuk
-    memset(buff,0,sizeof(buff));
-    read(0,buff,rest);
-    wbytes = client.send(buff,rest);
-    if(wbytes < 0){
-      std::cerr << "error sending rest ... " << sockError << "\n";
+  // 2. Wait OK from server
+  rbytes = client.recv((char*)buffer,sizeof(buffer));
+  if(rbytes <= 0){
+    printf("[error] step 2. - recv() returned %lu\n",wbytes);
+    return -1;
+  }
+  if(!gstrcmp((char*)buffer,(char*)SERVER_OK,strlen(SERVER_OK))){
+    printf("[error] step 2. - expected %s, instead got %s\n",SERVER_OK,buffer);
+    return -1;
+  }
+  memset(buffer,0,sizeof(buffer));
+  // 3. Send SIZE <size> to server
+  char message_size[100];
+  memset(message_size,0,sizeof(message_size));
+  int cx = snprintf(message_size,sizeof(message_size),"SIZE %lu",bytes);
+  if(cx <= 0){
+    printf("[error] snprintf() returned %i\n",cx);
+    return -1;
+  }
+  wbytes = client.send(message_size);
+  if(wbytes <= 0){
+    printf("[error] - step 3. send() SIZE <size> returned %lu\n",wbytes);
+    return -1;
+  }
+  // 4. Receive server's `OK <size>`
+  char server_message_size[80];
+  char delim[] = " ";
+  rbytes = client.recv((char*)buffer,sizeof(buffer));
+  if(rbytes <= 0){
+    printf("rbytes returned %lu\n",rbytes);
+    return -1;
+  }
+  char *result = strtok((char*)buffer,delim); 
+  if(result == nullptr || (result = strtok(NULL,delim)) == nullptr){
+    printf("[error] step 3. strok() returned NULL\n");
+    return -1;
+  }
+  uint64_t server_msg_size = strtol(result,NULL,10);
+  if(server_msg_size <= 0){
+    printf("[error] strtol() returned %lu\n", server_msg_size);
+    return -1;
+  }
+  if(server_msg_size != bytes){
+    printf("[error] server_msg != bytes ~ %lu != %lu\n",server_msg_size,bytes);
+    return -1;
+  }
+  memset(server_message_size,0,sizeof(server_message_size));
+  // 5. Start sending data
+  if(bytes < MAX_PACKET_LENGTH){
+    // Data can be sent in 1 chunk, go for it
+    if(read(0,buffer,bytes) <= 0){
+      printf("[error] - step 5. - read(stdin) returned <= 0");
       return -1;
-    } 
-    memset(buff,0,wbytes);
+    };
+    // Buffer succesfully populated with STDIN data
+    wbytes = client.send((char*)buffer,bytes);
+    if(wbytes <= 0){
+      printf("[error] sending data in 1 go returned %lu\n",wbytes);
+      return -1;
+    }
+    // Wait for server OK <size>
+    rbytes = client.recv((char*)buffer,sizeof(buffer));
+    if(rbytes <= 0){
+      printf("[error] receiving server OK returned %lu\n",rbytes);
+      return -1;
+    }
+    result = strtok((char*)buffer,delim);
+    if(result == nullptr || (result = strtok(nullptr,delim)) == nullptr){
+      printf("[error] strtok() returned nullptr Aa\n");
+      return -1;
+    }
+    server_msg_size = strtol(result,NULL,10);
+    if(server_msg_size != wbytes){
+      printf("[error] server reported %lu bytes when %lu were sent\n",server_msg_size,wbytes);
+      return -1;
+    }
+  }else{
+    printf("woski\n");
+    // Data has to be sent in +1 send() since its more data than what max tcp packet length
+    // uint16_t;
+    unsigned char *buffptr = buffer;while(read(0,buffptr,sizeof(buffer))){
+    while(read(0,buffer,sizeof(buffer)) >= 0){
+      while((wbytes = client.send((char*)buffptr,MAX_PACKET_LENGTH))){
+        buffptr+=MAX_PACKET_LENGTH;
+        memset(buffer,0,sizeof(buffer));
+        // 5.2 Wait for server OK <size> 
+        rbytes = client.recv((char*)buffer,sizeof(buffer));
+        if(rbytes <= 0){
+          printf("[error] receiving server OK returned %lu\n",rbytes);
+          return -1;
+        }
+        result = strtok((char*)buffer,delim);
+        if(result == nullptr){
+          printf("first strtok returned NULL\n");
+          return -1;
+        } 
+        result = strtok(nullptr,delim);
+        if(result == nullptr){
+          printf("second result returned NULL\n");
+          return -1;
+        }
+        server_msg_size = strtol(result,NULL,10);
+        if(server_msg_size != wbytes){
+          printf("[error] server reported %lu bytes when %lu were sent\n",server_msg_size,wbytes);
+          return -1;
+        } 
+        result = nullptr;
+        memset(buffer,0,sizeof(buffer));
+      }
+    }
   }
-  printf("[info] sending END OF CONNECTION\n");
-  if(client.send(END_OF_CONNECTION_MSG) <= 0){
-    std::cerr << "error sending END OF CONNECTION\n";
+}
+  memset(buffer,0,sizeof(buffer));
+  // 6. Send %%END%%
+  wbytes = client.send((char*)END_OF_CONNECTION_MSG,strlen(END_OF_CONNECTION_MSG));
+  if(wbytes <= 0){
+    printf("[error] - sending %%END%% returned %lu\n", wbytes);
     return -1;
-  };
-  memset(buff,0,sizeof(buff));
-  printf("[info] waiting OK_END from server\n");
-  int n = client.recv(buff,10);
-  if(!gstrcmp(buff,(char*)SERVER_OK,3)){
-    std::cerr << "not equal: " << buff << " : " << SERVER_END << "\n";
   }
-  client.close();
-  printf("[info] data succesfully sent\n");
+  // 7. Wait for server DONE and close connection
+  rbytes = client.recv((char*)buffer,sizeof(buffer));
+  if(rbytes <= 0){
+    printf("[error] - receiving DONE from server returned %lu\n",rbytes);
+    return -1;
+  }
+  if(!gstrcmp((char*)buffer,(char*)CONNECTION_DONE,strlen(CONNECTION_DONE))){
+    printf("[error] - expected %s and got %s\n",CONNECTION_DONE, buffer);
+  }
+  printf("DONE\n");
   client.close();
   return 0;
 }

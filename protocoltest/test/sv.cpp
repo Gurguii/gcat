@@ -2,6 +2,9 @@
 using namespace gsocket;
 #define host "127.0.0.1"
 #define port 9001
+// loop ~ [\] [|] [/] [-] [\] [|] [/] [-]
+using ui64 = uint64_t;
+
 int main()
 {
   tcp4socket sv;
@@ -15,13 +18,15 @@ int main()
     tcp4socket client = sv.accept();
     while((sbytes = client.recv(buffer,sizeof(buffer))) > 0){
       total += sbytes;
-      // Got data 
-      write(0,buffer,sbytes);
+      // Got data
+      printf("%s\n",buffer);
       memset(buffer,0,sbytes);
     }
     // Client closed connection
     // empty buffer
     memset(buffer,0,sizeof(buffer));
+    printf("[+] Connection closed\n[+] Total: %lu bytes\n",total);
+    total = 0;
     client.close();
   }
   sv.close();
