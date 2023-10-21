@@ -4,20 +4,20 @@
 
 
 /* [PROTOTYPE] Communication will work as following:
-* 1. Client sends %%BEG%% string to the server
-* 2. Server sends OK to the client
-* 3. Client sends SIZE <size> 
-* 4. Server sends OK <size> (client checks if matches) 
-* 5. Client starts sending data
-* @note server sends OK <read size> in every successful recv()
-* and client checks <read size> with it's <write size> before
-* sending more data
-* 6. Client ends up sending %%END%%
-* 7. Server sends DONE and closes connection
+ * 1. client -> server : %%BEG%% + server check
+ * 2. server -> client : OK
+ * 3. client -> server : RDY
+ * 4. server -> client : RDY
+ * 5. [LOOP] Receive data
+ * 5. client -> server : data
 */
 
-#define BEGINNING_OF_CONNECTION_MSG "%%BEG%%"
-#define END_OF_CONNECTION_MSG "%%END%%"
-#define CONNECTION_DONE "%%DONE%%"
-#define SERVER_OK "OK"
-#define MAX_PACKET_LENGTH 64000
+#define BEG_MSG "%%BEG%%"
+#define END_MSG "%%END%%"
+#define OK_MSG "%%OK%%"
+#define RDY_MSG "%%RDY%%"
+
+#define MAX_PACKET_LENGTH 63000
+#define DATA_BUFFER_SIZE (4 * 1024 * 1024)
+#define MSG_BUFFER_SIZE 1024
+#define TCP_BUFFER_SIZE 60000

@@ -1,5 +1,8 @@
 #include <gsocket/gsocket.hpp>
 #include "./parser.cpp"
+#include "./sv.hpp"
+#include "./cl.hpp"
+
 using namespace gsocket;
 
 int main(int argc, const char **args)

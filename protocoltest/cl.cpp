@@ -33,7 +33,7 @@ int main()
 
   uint64_t wbytes = 0, rbytes = 0, total = 0;
   // 1. Send %%BEG%% to server
-  wbytes = client.send((char*)BEGINNING_OF_CONNECTION_MSG,strlen(BEGINNING_OF_CONNECTION_MSG));
+  wbytes = client.send((char*)BEG_MSG,strlen(BEG_MSG));
   if(wbytes <= 0){
     printf("[error] step 1. - send() returned %lu\n",wbytes);
     return -1;
@@ -44,8 +44,8 @@ int main()
     printf("[error] step 2. - recv() returned %lu\n",wbytes);
     return -1;
   }
-  if(!gstrcmp((char*)buffer,(char*)SERVER_OK,strlen(SERVER_OK))){
-    printf("[error] step 2. - expected %s, instead got %s\n",SERVER_OK,buffer);
+  if(!gstrcmp((char*)buffer,(char*)OK_MSG,strlen(OK_MSG))){
+    printf("[error] step 2. - expected %s, instead got %s\n",OK_MSG,buffer);
     return -1;
   }
   memset(buffer,0,sizeof(buffer));
@@ -152,7 +152,7 @@ int main()
 }
   memset(buffer,0,sizeof(buffer));
   // 6. Send %%END%%
-  wbytes = client.send((char*)END_OF_CONNECTION_MSG,strlen(END_OF_CONNECTION_MSG));
+  wbytes = client.send((char*)END_MSG,strlen(END_MSG));
   if(wbytes <= 0){
     printf("[error] - sending %%END%% returned %lu\n", wbytes);
     return -1;
@@ -163,8 +163,8 @@ int main()
     printf("[error] - receiving DONE from server returned %lu\n",rbytes);
     return -1;
   }
-  if(!gstrcmp((char*)buffer,(char*)CONNECTION_DONE,strlen(CONNECTION_DONE))){
-    printf("[error] - expected %s and got %s\n",CONNECTION_DONE, buffer);
+  if(!gstrcmp((char*)buffer,(char*)END_MSG,strlen(END_MSG))){
+    printf("[error] - expected %s and got %s\n",END_MSG, buffer);
   }
   printf("DONE\n");
   client.close();

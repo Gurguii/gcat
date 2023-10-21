@@ -1,7 +1,1 @@
-- Desarrollar mi propio "protocolo" mandar un primer mensaje con 
-un formateo concreto indicando el tamaño del mensaje que se va a enviar
-en cuantos chunks y el size de cada chunk.
-
-%%GURGUI%%4096:4%%GURGUI%%\r\n
-<data>\r\n
-%%GURGUI%%
+- calloc()
