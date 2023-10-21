@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <math.h>
-#include "progressbar.c"
+#include "../progressbar.c"
 #include <unistd.h>
 
 int main()

@@ -1,8 +1,9 @@
 #include <gsocket/gsocket.hpp>
 #include <string.h>
-#include "protocoltest/gurguiTCPprotocol.h"
-using namespace gsocket;
+#include "../gurguiTCPprotocol.h"
+#include "../../utils/cfunctions/custom_functions.h"
 
-bool gstrcmp(char *buff1, char* buff2, int n);
-int simple_client(const char *address, uint16_t port);
-
+namespace gcat
+{
+int start_tcp_client(const char *address, uint16_t port);
+}

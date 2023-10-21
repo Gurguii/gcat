@@ -35,7 +35,7 @@ class ProgressBar
     if(_read <= total){
       return (const char*)std::memset(progress_bar_buffer, icon, _read / (total/pbar_size));
     }
-      return nullptr;
+    return nullptr;
   }
   const char* get(){
     return progress_bar_buffer;

@@ -1,44 +1,57 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
-/* Gurguicat arguments
-*  -t : tcp mode
-*  -u : udp mode
-*  -p <port>: port number
-*  -v : verbose
-*  -l : listen mode
-*  -f <file> : save data received to <file> 
-*  -tout <int> : timeout to receive data after connection
-*/
+#include "src/gurguiTCPprotocol.h"
+
+#define RESET "\033[0m"
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define YELLOW "\033[33m"
+#define BLUE "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN "\033[36m"
+#define WHITE "\033[37m"
 
 bool tcp = 0;
 bool udp = 0;
 bool verbose = 0;
 bool listen_mode = 0;
-std::string filepath;
+const char *filepath;
 uint16_t timeout = 0;
-uint16_t port = 80; // Default port number
+uint16_t port = 4444;
+const char *interface = IFA_ANY; 
+const char *address = nullptr;
+bool ip6 = false;
+
+#define OPTION_COLOR CYAN
+#define ARGUMENT_COLOR GREEN
+#define DESCRIPTION_COLOR RESET
 
 void print_help()
 {
-  std::cout << "Usage: gurguicat [options]\n"
-               << "Options:\n"
-               << "  -t : tcp mode\n"
-               << "  -u : udp mode\n"
-               << "  -p <port>: port number\n"
-               << "  -v : verbose\n"
-               << "  -l : listen mode\n"
-               << "  -f <file> : save data received to <file>\n"
-               << "  -tout <int> : timeout to receive data after connection\n";
+  std::cout << MAGENTA << "Usage:" << RESET << " gurguicat [options]\n"
+               << YELLOW << "Options:" << RESET << "\n"
+               << OPTION_COLOR << "-h" << RESET << " :print this message and exit\n"
+               << OPTION_COLOR << "-t" << RESET << " :tcp mode\n"
+               << OPTION_COLOR << "-u" << RESET << " :udp mode\n"
+               << OPTION_COLOR << "-p "<< ARGUMENT_COLOR << "<port>" << DESCRIPTION_COLOR " :port number\n"
+               << OPTION_COLOR << "-v" << RESET << " :verbose" << DESCRIPTION_COLOR << "\n"
+               << OPTION_COLOR << "-l" << RESET << " :listen mode" << DESCRIPTION_COLOR << "\n"
+               << OPTION_COLOR << "-f" << ARGUMENT_COLOR << " <file> " << RESET << ":save data received to a file\n"
+               << OPTION_COLOR << "-tout" << ARGUMENT_COLOR << " <time(s)> " << RESET << ":timeout to receive data after connection" << DESCRIPTION_COLOR << "\n"
+               << OPTION_COLOR << "-i" << ARGUMENT_COLOR << " <iface> " << RESET << ":interface to bind to (server)" << DESCRIPTION_COLOR << "\n"
+               << OPTION_COLOR << "-ip6" << RESET << " :use IPv6\n";
 }
+
 // TODO - add long option (-p | --port)
 int parser(int argc, const char **args)
 {
   int pos = 0, err = 0;
   const char *arg = nullptr;
-  for(int i = 1; i < argc; ++i)
+  while(pos < argc)
   {
-    arg = args[i];
+    arg = args[pos];
+    printf("arg: %s\n",arg);
     if(!std::strcmp(arg,"-t"))
     {
       tcp = true;
@@ -47,7 +60,7 @@ int parser(int argc, const char **args)
       udp = true;
     }else if(!std::strcmp(arg,"-p"))
     {
-      port = std::stoi(args[++i]);
+      port = std::stoi(args[++pos]);
     }else if(!std::strcmp(arg,"-v"))
     {
       verbose = true;
@@ -56,14 +69,19 @@ int parser(int argc, const char **args)
       listen_mode = true;
     }else if(!std::strcmp(arg,"-f"))
     {
-      filepath = args[++i]; 
+      filepath = args[++pos]; 
     }else if(!std::strcmp(arg,"-tout"))
     {
-      timeout = std::stoi(args[++i]);
+      timeout = std::stoi(args[++pos]);
     }else if(!std::strcmp(arg,"-h"))
     {
-      return 1;
-    }else 
+      err = 1;
+    }else if(!std::strcmp(arg,"-i")){
+      interface = args[++pos];
+    }else if(!std::strcmp(arg,"-ip6")){
+      ip6 = true;
+    }
+    else 
     {
       fprintf(stderr,"[err] option '%s' doesn't exist\n",arg);
     }
