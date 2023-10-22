@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
-#include "src/gurguiTCPprotocol.h"
 
 #define RESET "\033[0m"
 #define RED "\033[31m"
@@ -12,14 +11,14 @@
 #define CYAN "\033[36m"
 #define WHITE "\033[37m"
 
-bool tcp = 0;
+bool tcp = 1; // default protocol
 bool udp = 0;
 bool verbose = 0;
 bool listen_mode = 0;
 const char *filepath;
 uint16_t timeout = 0;
 uint16_t port = 4444;
-const char *interface = "lo"; 
+const char *interface = nullptr; 
 const char *address = nullptr;
 bool ip6 = false;
 
@@ -48,6 +47,12 @@ int parser(int argc, const char **args)
 {
   int pos = 0, err = 0;
   const char *arg = nullptr;
+  for(int i = 0; i < argc; ++i){
+    if(!strcmp(args[i],"-h") || !strcmp(args[i],"--help")){
+      return 1;
+    }
+  }
+  
   while(pos < argc)
   {
     arg = args[pos];
