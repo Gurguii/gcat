@@ -34,21 +34,21 @@ int main(int argc, const char **args)
     return 0;
   }
 
-  if(parser(argc, args)){
+  if(parser(argc-1, args+1)){
     print_help();
     return 0;
   };
   
-  //if(tcp && listen_mode){
-  //  if(interface != nullptr){
-  //    gsocket::NetworkInterface ifa;
-  //    gsocket::getIpByIface(&ifa, interface);
-  //    gcat::start_tcp_server(ip6 ? ifa.ip6.c_str() : ifa.ip4.c_str(),port);
-  //  }
-  //  gcat::start_tcp_server(address,port);
-  //}else if(tcp && !listen_mode){
-  //  gcat::start_tcp_client(address,port);
-  //}
+  if(tcp && listen_mode){
+    if(interface != nullptr){
+      gsocket::NetworkInterface ifa;
+      gsocket::getIpByIface(&ifa, interface);
+      gcat::start_tcp_server(ip6 ? ifa.ip6.c_str() : ifa.ip4.c_str(),port);
+    }
+    gcat::start_tcp_server(address,port);
+  }else if(tcp && !listen_mode){
+    gcat::start_tcp_client(address,port);
+  }
   printf("== Arguments parsed ==\ntcp: %b\nudp: %b\nverbose: %b\nlisten: %b\nfilepath: %s\ntimeout: %d\nport: %d\n", tcp, udp, verbose, listen_mode, filepath, timeout, port);
   return 0;
 }

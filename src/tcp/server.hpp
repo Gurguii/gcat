@@ -1,6 +1,6 @@
 #include <gsocket/gsocket.hpp>
 #include "../../utils/cfunctions/custom_functions.h"
-#include "../gurguiTCPprotocol.h"
+#include "gurguiTCPprotocol.h"
 
 namespace gcat
 {

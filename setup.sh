@@ -67,7 +67,7 @@ if [ ! -e "/usr/local/lib/libgsocket.so" ]; then
 	# install libgsocket
 	# TODO - make repo public (improve first)
 	# git clone git@github.com:Gurguii/nsocketlib.git
-	bash /home/gurgui/github/nsocketlib/scripts/install.sh
+	bash nsocketlib/scripts/install.sh
 fi
 
 # Build gcat

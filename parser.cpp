@@ -19,7 +19,7 @@ bool listen_mode = 0;
 const char *filepath;
 uint16_t timeout = 0;
 uint16_t port = 4444;
-const char *interface = IFA_ANY; 
+const char *interface = "lo"; 
 const char *address = nullptr;
 bool ip6 = false;
 
@@ -51,7 +51,6 @@ int parser(int argc, const char **args)
   while(pos < argc)
   {
     arg = args[pos];
-    printf("arg: %s\n",arg);
     if(!std::strcmp(arg,"-t"))
     {
       tcp = true;
@@ -60,7 +59,8 @@ int parser(int argc, const char **args)
       udp = true;
     }else if(!std::strcmp(arg,"-p"))
     {
-      port = std::stoi(args[++pos]);
+      if(++pos == argc){fprintf(stderr,"option '%s' requires an argument\n",arg);break;}
+      port = std::stoi(args[pos]);
     }else if(!std::strcmp(arg,"-v"))
     {
       verbose = true;
@@ -69,7 +69,8 @@ int parser(int argc, const char **args)
       listen_mode = true;
     }else if(!std::strcmp(arg,"-f"))
     {
-      filepath = args[++pos]; 
+      if(++pos == argc){fprintf(stderr,"option '%s' requires an argument\n",arg);break;}
+      filepath = args[pos]; 
     }else if(!std::strcmp(arg,"-tout"))
     {
       timeout = std::stoi(args[++pos]);
@@ -77,7 +78,8 @@ int parser(int argc, const char **args)
     {
       err = 1;
     }else if(!std::strcmp(arg,"-i")){
-      interface = args[++pos];
+      if(++pos == argc){fprintf(stderr,"option '%s' requires an argument\n",arg);break;}
+      interface = args[pos];
     }else if(!std::strcmp(arg,"-ip6")){
       ip6 = true;
     }
@@ -85,6 +87,7 @@ int parser(int argc, const char **args)
     {
       fprintf(stderr,"[err] option '%s' doesn't exist\n",arg);
     }
+    ++pos;
   }
   return err;
 }
