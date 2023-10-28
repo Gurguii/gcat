@@ -1,15 +1,8 @@
+#include <gsocket/gsocket.hpp>
 #include <iostream>
 #include <cstdint>
 #include <cstring>
-
-#define RESET "\033[0m"
-#define RED "\033[31m"
-#define GREEN "\033[32m"
-#define YELLOW "\033[33m"
-#define BLUE "\033[34m"
-#define MAGENTA "\033[35m"
-#define CYAN "\033[36m"
-#define WHITE "\033[37m"
+#include "messages.cpp"
 
 bool tcp = 1; // default protocol
 bool udp = 0;
@@ -28,12 +21,11 @@ bool ip6 = false;
 
 void print_help()
 {
-  std::cout << MAGENTA << "Usage:" << RESET << " gurguicat [options]\n"
+  std::cout << MAGENTA << "Usage:" << RESET << " gurguicat [options] <host> <port>\n"
                << YELLOW << "Options:" << RESET << "\n"
                << OPTION_COLOR << "-h" << RESET << " :print this message and exit\n"
                << OPTION_COLOR << "-t" << RESET << " :tcp mode\n"
                << OPTION_COLOR << "-u" << RESET << " :udp mode\n"
-               << OPTION_COLOR << "-p "<< ARGUMENT_COLOR << "<port>" << DESCRIPTION_COLOR " :port number\n"
                << OPTION_COLOR << "-v" << RESET << " :verbose" << DESCRIPTION_COLOR << "\n"
                << OPTION_COLOR << "-l" << RESET << " :listen mode" << DESCRIPTION_COLOR << "\n"
                << OPTION_COLOR << "-f" << ARGUMENT_COLOR << " <file> " << RESET << ":save data received to a file\n"
@@ -52,20 +44,35 @@ int parser(int argc, const char **args)
       return 1;
     }
   }
-  
+  if(argc == 0){
+    return 1;
+  }
+  // LISTEN ON ALL ADDRS - GIVEN PORT
+  if(argc == 1){
+    address = "0.0.0.0";
+    port = strtol(args[0],nullptr,10);
+    listen_mode = true;
+    return port <= 0 ? 1 : 0;
+  }
+  // CONNECT TO GIVEN ADDR - GIVEN PORT
+  if(argc == 2){
+    address = args[0];
+    port = strtol(args[1],nullptr,10);
+    return port <= 0 ? 1 : 0;
+  }
+
+  // gcat [options] <host> <port>  
+  address = args[argc-2];
+  port = strtol(args[argc-1],nullptr,10);
+  argc -= 2; 
   while(pos < argc)
   {
     arg = args[pos];
-    if(!std::strcmp(arg,"-t"))
-    {
-      tcp = true;
-    }else if(!std::strcmp(arg,"-u"))
+    msg(GREEN, arg, stdout);
+    if(!std::strcmp(arg,"-u"))
     {
       udp = true;
-    }else if(!std::strcmp(arg,"-p"))
-    {
-      if(++pos == argc){fprintf(stderr,"option '%s' requires an argument\n",arg);break;}
-      port = std::stoi(args[pos]);
+      tcp = false;
     }else if(!std::strcmp(arg,"-v"))
     {
       verbose = true;
@@ -93,6 +100,23 @@ int parser(int argc, const char **args)
       fprintf(stderr,"[err] option '%s' doesn't exist\n",arg);
     }
     ++pos;
+  }
+
+  // check if given address is an interface or an actual address
+  int size = strlen(address);
+  for(int i = 0; i < size; ++i){
+    if(*(address+i) < 48 || *(address+i) > 57){
+      // not a number, interpret as interface
+      gsocket::NetworkInterface ifa;
+      if(gsocket::getIpByIface(&ifa,address)){
+        // not a valid interface
+        fprintf(stderr,"[error] invalid interface '%s'\n", address);
+        return -1;
+      };
+      printf("ipv4: %s\nipv6: %s\n", ifa.ip4.c_str(), ifa.ip6.c_str());
+      address = ip6 ? std::move(ifa.ip6.c_str()) : std::move(ifa.ip4.c_str());
+      break;
+    }
   }
   return err;
 }

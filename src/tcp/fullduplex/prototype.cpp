@@ -1,17 +1,19 @@
 #include <cstdio>
 #include <gsocket/gsocket.hpp>
 #include <sys/epoll.h>
-using namespace gsocket;
 
-int main()
+namespace gcat
 {
-  tcp4socket sock;
-  if(sock.connect("127.0.0.1", 9001)){
+
+template <typename SocketClass> int start_fullduplex_client(SocketClass sock, const char *address, uint16_t port)
+{
+  // gsocket::tcp4socket sock;
+  if(sock.connect(address, port)){
     std::cerr << sockError << "\n"; return -1;
   }
-  addr4 client_addr;
+  gsocket::addr4 client_addr;
   int rbytes = 0;
-  Pipe pipe;
+  gsocket::Pipe pipe;
   if(fork() == 0){
     // child - reader
     pipe.closeWriter();
@@ -21,41 +23,64 @@ int main()
     epoll_event ev1{
       .events = EPOLLIN
     };
-    ev1.data.fd = pipe.GetReader();
+    ev1.data.fd = sock._fd;
     epoll_event ev2{
       .events = EPOLLIN,
     };
-    ev2.data.fd = sock._fd;
+    ev2.data.fd = pipe.GetReader();
     
     epoll_ctl(epollfd,EPOLL_CTL_ADD,sock._fd,&ev1);
     epoll_ctl(epollfd,EPOLL_CTL_ADD,pipe.GetReader(),&ev2);
     
     epoll_event available[2];
-    printf("hahah\n");
     for(;;){
       printf("[+] reader waiting for events\n");
       if(epoll_wait(epollfd, available, 2,-1)){
-        printf("got event");
         for(epoll_event ev : available){
           if(ev.data.fd == sock._fd){
+            printf("socket fd\n");
             while((rbytes = sock.recv((char*)databuff,4*1024*1024)) > 0){
               printf("[received %i bytes] %s\n",rbytes,databuff);
               memset(databuff,0,rbytes);
             }
           }else if(ev.data.fd == pipe.GetReader()){
             // read FILE
-            std::string bufer(1024,'\x00');
-            pipe.read(bufer);
-            if(bufer == "FILE"){
-              printf("PIPE TOLD US TO READ A FILE\n");
+            printf("pipe fd\n");
+            pipe.read((char*)databuff,4 * 1024 * 1024);
+            printf("buffer: %s - size: %lu\n",databuff,strlen((char*)databuff));
+            char delims[] = " ";
+            char *filename = strtok((char*)databuff,delims);
+            if(strcmp(filename,"FILE")){
+              continue; 
             }
+            filename = strtok(nullptr,delims);
+            if(filename == nullptr){
+              continue;
+            }
+            // remove \n from filename
+            *(filename+strlen(filename)-1) = '\0';
+            FILE *file = fopen(filename,"wb");
+            if(file == nullptr){
+              printf("couldn't open file '%s'\n",filename);
+              continue;
+            }
+            while((rbytes = sock.recv((char*)databuff,4*1024*1024)) > 0){
+              if(!strcmp((char*)databuff+rbytes-4,"END\n")){
+                break;
+              }
+              fwrite(databuff,rbytes,1,file);
+              memset(databuff,0,rbytes);
+            }
+            printf("File '%s' saved\n", (char*)filename);
+            fclose(file);
           }
         }
         memset(available,0,sizeof(epoll_event)*2);
+        break;
       }
     }
     printf("connection closed\n");
-  }else{
+ }else{
     uint8_t *msgbuf = (uint8_t*)calloc(1024,sizeof(uint8_t));
     int sbytes = 0;
     pipe.closeReader();
@@ -82,30 +107,25 @@ int main()
         printf("sent '%s' Size: '%i' bytes\n",result, sbytes);
         fclose(file);
       }else if(*msgbuf == '>'){
-        pipe.write("FILE");
+        //pipe.write("FILE");
         char delims[] = " ";
-        char *result = strtok((char*)msgbuf,delims);
-        uint8_t *databuff = (uint8_t*)calloc(4 * 1024 * 1024, sizeof(uint8_t));
-        result = strtok(NULL,delims);
-        if(result == nullptr){
+        char *filename = strtok((char*)msgbuf,delims);
+        filename = strtok(NULL,delims);
+        if(filename == nullptr){
           std::cerr << "filename not supplied\n"; 
           continue;
         }
-        FILE *file = fopen(result,"wb");
-        if(file == nullptr){
-          fprintf(stderr,"couldn't open file '%s'\n", result);
+        std::string fname = std::string("FILE ") += filename;
+        memset(msgbuf,0,1024);
+        int cx = snprintf((char*)msgbuf,20,"FILE %s",filename);
+        if(cx <= 0){
+          printf("snprintf() failed\n");
+          free(filename); 
+          filename = nullptr;
           continue;
         }
-        while((rbytes = sock.recv((char*)databuff,4*1024*1024)) > 0){
-          fwrite(databuff,rbytes,1,file);
-          memset(databuff,0,rbytes);
-        }
-        printf("data written to file '%s'\n",result);
-        free(databuff);
-        free(result);
-        databuff = nullptr;
-        result = nullptr;
-        fclose(file);
+        printf("writing to pipe: %s\n", fname.c_str());
+        pipe.write(fname);
       }
       else{
         // send data through socket
@@ -121,4 +141,5 @@ int main()
   sock.close();
 
   return 0;
+}
 }
