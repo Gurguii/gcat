@@ -10,7 +10,6 @@
 #define CYAN "\033[36m"
 #define WHITE "\033[37m"
 
-
-void msg(const char *color_code, const char *msg, FILE* target){
-  fprintf(target,"%s%s%s\n",color_code,msg,RESET);
+void msg(const char *msg, FILE* target,const char *color_code = WHITE){
+  fprintf(target,"%s%s%s",color_code,msg,RESET);
 }

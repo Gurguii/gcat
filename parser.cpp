@@ -21,7 +21,7 @@ bool ip6 = false;
 
 void print_help()
 {
-  std::cout << MAGENTA << "Usage:" << RESET << " gurguicat [options] <host> <port>\n"
+  std::cout << MAGENTA << "Usage:" << RESET << " gcat [options] <host> <port>\n"
                << YELLOW << "Options:" << RESET << "\n"
                << OPTION_COLOR << "-h" << RESET << " :print this message and exit\n"
                << OPTION_COLOR << "-t" << RESET << " :tcp mode\n"
@@ -68,7 +68,6 @@ int parser(int argc, const char **args)
   while(pos < argc)
   {
     arg = args[pos];
-    msg(GREEN, arg, stdout);
     if(!std::strcmp(arg,"-u"))
     {
       udp = true;
@@ -97,7 +96,10 @@ int parser(int argc, const char **args)
     }
     else 
     {
-      fprintf(stderr,"[err] option '%s' doesn't exist\n",arg);
+      msg("[err] ",stdout, RED);
+      msg("option '", stdout);
+      msg(arg, stdout, GREEN);
+      msg("' doesn't exist\n",stdout);
     }
     ++pos;
   }
@@ -105,15 +107,16 @@ int parser(int argc, const char **args)
   // check if given address is an interface or an actual address
   int size = strlen(address);
   for(int i = 0; i < size; ++i){
-    if(*(address+i) < 48 || *(address+i) > 57){
-      // not a number, interpret as interface
+    uint8_t c = *(address+i);
+    if((c < 48 || c > 57) && c != '.'){
+      // not a number or dot '.', interpret as interface
       gsocket::NetworkInterface ifa;
       if(gsocket::getIpByIface(&ifa,address)){
         // not a valid interface
         fprintf(stderr,"[error] invalid interface '%s'\n", address);
         return -1;
       };
-      printf("ipv4: %s\nipv6: %s\n", ifa.ip4.c_str(), ifa.ip6.c_str());
+      //printf("ipv4: %s\nipv6: %s\n", ifa.ip4.c_str(), ifa.ip6.c_str());
       address = ip6 ? std::move(ifa.ip6.c_str()) : std::move(ifa.ip4.c_str());
       break;
     }

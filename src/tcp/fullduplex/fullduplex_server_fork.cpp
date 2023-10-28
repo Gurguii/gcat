@@ -5,15 +5,29 @@
 namespace gcat
 {
 
-template <typename SocketClass> int start_fullduplex_client(SocketClass sock, const char *address, uint16_t port)
+template <typename SocketClass> int start_fullduplex_server(SocketClass sock, const char *address, uint16_t port)
 {
   // gsocket::tcp4socket sock;
-  if(sock.connect(address, port)){
+  if(sock.bind(address, port)){
     std::cerr << sockError << "\n"; return -1;
   }
-  gsocket::addr4 client_addr;
+
+  gsocket::addr client_addr;
   int rbytes = 0;
   gsocket::Pipe pipe;
+
+  gsocket::addr addr;
+
+  printf("LISTENING ON %s:%d\n",address,port);
+  printf("ACCEPTING CONNECTIONS\n");
+  gsocket::TCPsocket client = sock.accept(client_addr);
+
+  if(std::holds_alternative<gsocket::addr4>(addr)){
+    printf("CONNECTION FROM %s:%d\n",std::get<gsocket::addr4>(addr).host(),std::get<gsocket::addr4>(addr).port);
+  }else{
+    printf("CONNECTION FROM %s:%d\n",std::get<gsocket::addr6>(addr).host(),std::get<gsocket::addr6>(addr).port);
+  }
+
   if(fork() == 0){
     // child - reader
     pipe.closeWriter();

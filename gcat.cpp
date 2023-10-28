@@ -5,9 +5,11 @@
 #include "src/tcp/client.cpp"
 #include "src/tcp/client_noprotocol.cpp"
 #include "src/tcp/server_noprotocol.cpp"
-#include "src/tcp/fullduplex/prototype.cpp"
+#include "src/tcp/fullduplex/fullduplex_client.cpp"
+#include "src/tcp/fullduplex/fullduplex_server_fork.cpp"
+#include "src/tcp/fullduplex/fullduplex_server_async.cpp"
 /*
-bool tcp = 0;
+bool tcp = 1;
 bool udp = 0;
 bool verbose = 0;
 bool listen_mode = 0;
@@ -33,17 +35,16 @@ int main(int argc, const char **args)
 {
   if(parser(argc-1,args+1)){print_help(); return 0;}
   printf("address: %s - port: %d\n", address, port);
-  return 0;
   if(tcp && listen_mode){
-    gcat::start_tcp_server_no_protocol(address,port);
+    gcat::start_fullduplex_tcp_server<gsocket::tcp4socket>(gsocket::tcp4socket(),address,port);
   }else if(tcp && !listen_mode){
-    gcat::start_fullduplex_client<gsocket::tcp4socket>(gsocket::tcp4socket(),address,port);
+    gcat::start_fullduplex_tcp_client<gsocket::tcp4socket>(gsocket::tcp4socket(),address,port);
     //gcat::start_tcp_client_no_protocol(address,port);
   }
   
   if(udp && listen_mode){
+  }else if(udp && !listen_mode){
   }
-  //printf("address: %s port: %d\n", address,port);
   //printf("== Arguments parsed ==\ntcp: %b\nudp: %b\nverbose: %b\nlisten: %b\nfilepath: %s\ntimeout: %d\nport: %d\n", tcp, udp, verbose, listen_mode, filepath, timeout, port);
   return 0;
 }
