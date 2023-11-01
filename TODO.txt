@@ -1,2 +1,2 @@
-- calloc()
 - create gurguiprotocol handshake as a set of functions to be used in client/server methods
+- change parser

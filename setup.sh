@@ -65,12 +65,14 @@ done
 # Check that libgsocket exists
 if [ ! -e "/usr/local/lib/libgsocket.so" ]; then
 	# install libgsocket
-	# TODO - make repo public (improve first)
-	# git clone git@github.com:Gurguii/nsocketlib.git
+	git clone git@github.com:Gurguii/nsocketlib.git
 	bash nsocketlib/scripts/install.sh
 fi
 
 # Build gcat
-g++ -O3 -Wall ./gcat.cpp -o gcat -lgsocket
+if g++ -O3 -Wall ./gcat.cpp -o gcat -lgsocket; then
+	printf "[+] - Done, %s:%s successfully compiled!\n\n" "$name" "$version"
+else
+	printf "[error] Something happened compiling gcat\n\n"
+fi
 
-printf "[+] - Done, %s:%s successfully compiled!\n\n" "$name" "$version"

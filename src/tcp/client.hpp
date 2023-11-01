@@ -1,6 +1,6 @@
 #pragma once
 #include <gsocket/gsocket.hpp>
-#include "gurguiTCPprotocol.h"
+#include "handshake.h"
 #include "../../utils/cfunctions/custom_functions.h"
 
 namespace gcat
