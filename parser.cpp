@@ -1,122 +1,123 @@
-#include "messages.cpp"
 #include <cstdint>
 #include <cstring>
 #include <gsocket/gsocket.hpp>
 #include <iostream>
+#include "utils/cfunctions/custom_functions.h"
+#include "utils/memory.cpp"
 
-bool tcp = 1; // default protocol
-bool udp = 0;
-bool verbose = 0;
-bool listen_mode = 0;
+/* OPTIONS */
+bool opt_tcp = 1; // default protocol
+bool opt_udp = 0;
+bool opt_verbose = 0;
+bool opt_listen = 0;
 const char *filepath;
-uint16_t timeout = 0;
-uint16_t port = 4444;
-const char *interface = nullptr;
-const char *address = nullptr;
-bool ip6 = false;
+uint16_t opt_timeout = 0;
+uint16_t opt_port = 9001;
+const char *opt_interface = nullptr;
+const char *opt_address = "0.0.0.0";
+bool opt_ip6 = false;
+const char *opt_whitelist = nullptr;
+std::unordered_map<const char *,uint8_t>*opt_whitelist_cache;
+const char *opt_blacklist = nullptr;
+std::unordered_map<const char *,uint8_t>*opt_blacklist_cache;
 
 #define OPTION_COLOR CYAN
 #define ARGUMENT_COLOR GREEN
 #define DESCRIPTION_COLOR RESET
 
 void print_help() {
-  std::cout << MAGENTA << "Usage:" << RESET << " gcat [options] <host> <port>\n"
-            << YELLOW << "Options:" << RESET << "\n"
-            << OPTION_COLOR << "-h" << RESET
-            << " :print this message and exit\n"
-            << OPTION_COLOR << "-t" << RESET << " :tcp mode\n"
-            << OPTION_COLOR << "-u" << RESET << " :udp mode\n"
-            << OPTION_COLOR << "-v" << RESET << " :verbose" << DESCRIPTION_COLOR
-            << "\n"
-            << OPTION_COLOR << "-l" << RESET << " :listen mode"
-            << DESCRIPTION_COLOR << "\n"
-            << OPTION_COLOR << "-f" << ARGUMENT_COLOR << " <file> " << RESET
-            << ":save data received to a file\n"
-            << OPTION_COLOR << "-tout" << ARGUMENT_COLOR << " <time(s)> "
-            << RESET << ":timeout to receive data after connection"
-            << DESCRIPTION_COLOR << "\n"
-            << OPTION_COLOR << "-i" << ARGUMENT_COLOR << " <iface> " << RESET
-            << ":interface to bind to (server)" << DESCRIPTION_COLOR << "\n"
-            << OPTION_COLOR << "-ip6" << RESET << " :use IPv6\n";
+  msg("== GCAT ==\n",stdout,GREEN);
+  msg(R"(Usage: ./gcat [options] <host>* <port>*
+Note: default addr = 0.0.0.0 port = 9001)",stdout,CYAN);
+  msg("\n",stdout);
 }
 
-// TODO - add long option (-p | --port)
-int parser(int argc, const char **args) {
-  int pos = 0, err = 0;
-  const char *arg = nullptr;
-  if (argc == 0) {
-    return 1;
-  }
-  // LISTEN ON ALL ADDRS - GIVEN PORT
-  if (argc == 1) {
-    address = "0.0.0.0";
-    port = strtol(args[0], nullptr, 10);
-    listen_mode = true;
-    return port <= 0 ? 1 : 0;
-  }
-  // CONNECT TO GIVEN ADDR - GIVEN PORT
-  if (argc == 2) {
-    address = args[0];
-    port = strtol(args[1], nullptr, 10);
-    return port <= 0 ? 1 : 0;
-  }
+// ./gcat -l <port> ~ listen on 0.0.0.0 <port>
+// ./gcat <port> ~ connect to 0.0.0.0 <port>
+// ./gcat -lv <port> ~ listen on 0.0.0.0 <port> with verbose
+// ./gcat -v <port> ~ connect to 0.0.0.0 <port> with verbose
+// ./gcat -l <addr> <port> ~ listen on <addr> <port> 
+// ./gcat -l <addr> <port> ~ listen on <addr> <port> 
+// ./gcat -lw <file> eth0 4444 ~ listen on interface eth0 port 4444 using whitelist <file> (addr-per-line)
 
-  // gcat [options] <host> <port>
-  address = args[argc - 2];
-  port = strtol(args[argc - 1], nullptr, 10);
-  argc -= 2;
-  while (pos < argc) {
-    arg = args[pos];
-    if (!std::strcmp(arg, "-u")) {
-      udp = true;
-      tcp = false;
-    } else if (!std::strcmp(arg, "-v")) {
-      verbose = true;
-    } else if (!std::strcmp(arg, "-l")) {
-      listen_mode = true;
-    } else if (!std::strcmp(arg, "-f")) {
-      if (++pos == argc) {
-        fprintf(stderr, "option '%s' requires an argument\n", arg);
-        break;
+void parse_host_port_opt(const char *address){
+  /* 
+    * Possible ways to indicate an address 
+    * 1 - interface name -> eth0, enp3s0
+    * 2 - localhost -> 127.0.0.1
+    * 3 - address -> 192.168.1.45, 0.0.0.0, 127.0.0.1 etc.
+  */
+  for(int i = 0; i < strlen(address); ++i){
+    if(*(address+i) == '.'){
+      opt_address = address;
+      return;
+    }
+  }
+  uint16_t __port = strtol(address,nullptr,10);
+  if(__port > 0){
+    opt_port = __port;
+    return;
+  }
+  if(!strcmp(address,"localhost")){
+    opt_address = "127.0.0.1";
+  }
+  gsocket::NetworkInterface iface;
+  if(gsocket::getIpByIface(&iface,address)){
+    msg("getipbyiface()",stdout,RED);
+    return;
+  };
+  address = opt_ip6 ? iface.ip6.c_str() : iface.ip4.c_str();
+}
+
+int parser(int argc, const char **args) {
+  int pos = 1,err = 0;
+  const char *arg = nullptr;
+  for(int i = 0; i < argc; ++i){
+    if(!strcmp(args[i],"-h") || !strcmp(args[i],"--help")){
+      print_help();
+      return 0;
+    }
+  }
+  while(pos < argc){
+    const char *opt = args[pos];
+    if(*opt != '-'){
+      parse_host_port_opt(opt);
+    }else if(!gstrcmp(opt,"--",2)){
+      // parse short option
+      int optlen = strlen(opt);
+      for(int i = 1; i < optlen; ++i){
+        char subopt = *(opt+i);
+        switch(subopt){
+          case 'l':
+            opt_listen = 1;
+            break;
+          case 'v':
+            opt_verbose = 1;
+            break;
+          default:
+            printf("unknown option -%c\n",subopt);
+            break;
+        }
       }
-      filepath = args[pos];
-    } else if (!std::strcmp(arg, "-tout")) {
-      timeout = std::stoi(args[++pos]);
-    } else if (!std::strcmp(arg, "-h")) {
-      err = 1;
-    } else if (!std::strcmp(arg, "-i")) {
-      if (++pos == argc) {
-        fprintf(stderr, "option '%s' requires an argument\n", arg);
-        break;
+    }else{
+      // parse long option
+      if(!strcmp(opt,"--listen")){
+        opt_listen = 1;
+      }else if(!strcmp(opt,"--verbose")){
+        opt_verbose = 1;
+      }else if(!strcmp(opt,"--whitelist")){
+        opt_whitelist_cache = (std::unordered_map<const char *,uint8_t>*)allocate_cache_list(args[++pos]);
+      }else if(!strcmp(opt,"--blacklist")){
+        opt_blacklist_cache = (std::unordered_map<const char *,uint8_t>*)allocate_cache_list(args[++pos]);
+      }else{
+        printf("option '%s' doesn't exist\n",opt);
       }
-      interface = args[pos];
-    } else if (!std::strcmp(arg, "-ip6")) {
-      ip6 = true;
-    } else {
-      msg("[err] ", stdout, RED);
-      msg("option '", stdout);
-      msg(arg, stdout, GREEN);
-      msg("' doesn't exist\n", stdout);
     }
     ++pos;
+  } 
+  if(err){
+    print_help();
+    return 1;
   }
-
-  // check if given address is an interface or an actual address
-  int size = strlen(address);
-  for (int i = 0; i < size; ++i) {
-    uint8_t c = *(address + i);
-    if ((c < 48 || c > 57) && c != '.') {
-      // not a number or dot '.', interpret as interface
-      gsocket::NetworkInterface ifa;
-      if (gsocket::getIpByIface(&ifa, address)) {
-        // not a valid interface
-        fprintf(stderr, "[error] invalid interface '%s'\n", address);
-        return -1;
-      };
-      // printf("ipv4: %s\nipv6: %s\n", ifa.ip4.c_str(), ifa.ip6.c_str());
-      address = ip6 ? std::move(ifa.ip6.c_str()) : std::move(ifa.ip4.c_str());
-      break;
-    }
-  }
-  return err;
+  return 0;
 }

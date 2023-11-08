@@ -30,20 +30,32 @@ uint8_t operator==(uint8_t n,MODE n2)
 {
   return static_cast<uint8_t>(n2) == n;
 }
-
+uint8_t operator==(MODE n2,uint8_t n)
+{
+  return static_cast<uint8_t>(n2) == n;
+}
+/*
+  * [2] ./gcat -lp 9001
+  * [2] ./gcat localhost 9001
+ */
 int main(int argc, const char **args)
 {
-  if(parser(argc-1,args+1)){print_help(); return 0;}
-  printf("address: %s - port: %d\n", address, port);
-  if(tcp && listen_mode){
-    gcat::start_fullduplex_tcp_server<gsocket::tcp4socket>(gsocket::tcp4socket(),address,port);
-  }else if(tcp && !listen_mode){
-    gcat::start_fullduplex_tcp_client<gsocket::tcp4socket>(gsocket::tcp4socket(),address,port);
+  if(parser(argc,args)){
+    return 0;
+  }
+  printf("address: %s - port: %d\n", opt_address, opt_port);
+
+  if(opt_tcp && opt_listen){
+    gcat::start_fullduplex_tcp_server<gsocket::tcp4socket>(gsocket::tcp4socket(),opt_address,opt_port);
+  }else{
+    gcat::start_fullduplex_tcp_client<gsocket::tcp4socket>(gsocket::tcp4socket(),opt_address,opt_port);
     //gcat::start_tcp_client_no_protocol(address,port);
   }
   
-  if(udp && listen_mode){
-  }else if(udp && !listen_mode){
+  if(opt_udp && opt_listen){
+    // udp server
+  }else if(opt_udp){
+    // udp client
   }
   //printf("== Arguments parsed ==\ntcp: %b\nudp: %b\nverbose: %b\nlisten: %b\nfilepath: %s\ntimeout: %d\nport: %d\n", tcp, udp, verbose, listen_mode, filepath, timeout, port);
   return 0;
